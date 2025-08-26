@@ -7,23 +7,22 @@ on:
 jobs:
   sql-smoke-test:
     runs-on: ubuntu-latest
+
     services:
       mssql:
-        image: mcr.microsoft.com/azure-sql-edge:latest
+        image: mcr.microsoft.com/mssql/server:2022-latest
         env:
           ACCEPT_EULA: "Y"
           MSSQL_SA_PASSWORD: "Your_strong_password123"
         ports:
           - 1433:1433
-        options: >-
-          --health-cmd " /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Your_strong_password123 -Q 'SELECT 1' "
-          --health-interval 10s --health-timeout 5s --health-retries 30
+        # no healthcheck; we'll poll from the runner
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install sqlcmd
+      - name: Install sqlcmd (v18)
         run: |
           curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
           curl -sSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
@@ -31,16 +30,23 @@ jobs:
           sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev
           echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> $GITHUB_ENV
 
-      - name: Wait for SQL
+      - name: Wait for SQL to be ready
+        env:
+          SA_PWD: "Your_strong_password123"
         run: |
           for i in {1..60}; do
-            /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Your_strong_password123 -Q "SELECT @@VERSION" && break
+            /opt/mssql-tools18/bin/sqlcmd -S 127.0.0.1,1433 -U sa -P "$SA_PWD" -C -Q "SELECT 1" && exit 0
+            echo "SQL not ready yet... ($i/60)"
             sleep 2
           done
+          echo "SQL failed to start in time" >&2
+          exit 1
 
       - name: Run core scripts (00-03)
+        env:
+          SA_PWD: "Your_strong_password123"
         run: |
-          sqlcmd -S localhost -U sa -P Your_strong_password123 -b -i scripts/00-setup-database.sql
-          sqlcmd -S localhost -U sa -P Your_strong_password123 -b -i scripts/01-create-basic-temporal-table.sql
-          sqlcmd -S localhost -U sa -P Your_strong_password123 -b -i scripts/02-insert-update-delete-sample.sql
-          sqlcmd -S localhost -U sa -P Your_strong_password123 -b -i scripts/03-time-travel-queries.sql
+          sqlcmd -S 127.0.0.1,1433 -U sa -P "$SA_PWD" -C -b -i scripts/00-setup-database.sql
+          sqlcmd -S 127.0.0.1,1433 -U sa -P "$SA_PWD" -C -b -i scripts/01-create-basic-temporal-table.sql
+          sqlcmd -S 127.0.0.1,1433 -U sa -P "$SA_PWD" -C -b -i scripts/02-insert-update-delete-sample.sql
+          sqlcmd -S 127.0.0.1,1433 -U sa -P "$SA_PWD" -C -b -i scripts/03-time-travel-queries.sql
