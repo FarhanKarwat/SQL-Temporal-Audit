@@ -1,0 +1,44 @@
+﻿name: CI - Temporal Scripts Smoke Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  sql-smoke-test:
+    runs-on: ubuntu-latest
+    services:
+      mssql:
+        image: mcr.microsoft.com/azure-sql-edge:latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "Your_strong_password123"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd " /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P Your_strong_password123 -Q 'SELECT 1' "
+          --health-interval 10s --health-timeout 5s --health-retries 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install sqlcmd
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mssql-tools unixodbc-dev
+          echo "/opt/mssql-tools/bin" >> $GITHUB_PATH
+
+      - name: Wait for SQL
+        run: |
+          for i in {1..60}; do
+            /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P Your_strong_password123 -Q "SELECT @@VERSION" && break
+            sleep 2
+          done
+
+      - name: Run core scripts (00-03)
+        run: |
+          sqlcmd -S localhost -U sa -P Your_strong_password123 -b -i scripts/00-setup-database.sql
+          sqlcmd -S localhost -U sa -P Your_strong_password123 -b -i scripts/01-create-basic-temporal-table.sql
+          sqlcmd -S localhost -U sa -P Your_strong_password123 -b -i scripts/02-insert-update-delete-sample.sql
+          sqlcmd -S localhost -U sa -P Your_strong_password123 -b -i scripts/03-time-travel-queries.sql
