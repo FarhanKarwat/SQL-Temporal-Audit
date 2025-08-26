@@ -1,0 +1,14 @@
+```mermaid
+sequenceDiagram
+    participant App
+    participant Current as Current Table
+    participant History as History Table
+
+    App->>Current: INSERT row (v1)
+    Note right of Current: ValidFrom = now<br/>ValidTo = 9999-12-31
+    App->>Current: UPDATE row (to v2)
+    Current-->>History: Move prior version (v1)<br/>Set ValidTo = now
+    Note right of Current: v2 ValidFrom = now
+    App->>Current: DELETE row (v2)
+    Current-->>History: Move v2, set ValidTo = now
+```

@@ -1,0 +1,20 @@
+# Build & temp
+*.user
+*.suo
+*.cache
+*.log
+*.tmp
+*.bak
+*.md~
+*.sql~
+~$*
+# OS
+.DS_Store
+Thumbs.db
+# Python virtual envs (if you use any tooling here)
+.venv/
+env/
+# Node (if docs tooling is added later)
+node_modules/
+# VSCode
+.vscode/
